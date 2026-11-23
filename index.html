@@ -456,16 +456,23 @@
 </footer>
 
 <script>
-  /* ===== НАСТРОЙКА: вставьте сюда ссылку на вашу Google-форму =====
-     1. Создайте Google-форму с полями в том же порядке:
-        имя / усадьба / сколько человек / пожелания
-     2. Нажмите «Отправить» → скопируйте ссылку, она вида
-        https://docs.google.com/forms/d/e/XXXX/viewform
-     3. Вставьте её в GOOGLE_FORM_URL ниже и пришлите мне —
-        я подставлю идентификаторы полей, и ответы будут
-        сохраняться в вашу таблицу автоматически. */
-  const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSek_3gJ9pCFlryqJifDTz6UJib7Sj_ueqm7sClVIQ2CGTMBaw/formResponse'; // например: 'https://docs.google.com/forms/d/e/XXXX/formResponse'
-  const ENTRY = { name:'entry.1226512402', cottage:'entry.1902670502', count:'entry.1380819565', notes:'entry.82547827' };
+  /* ===== Google Forms RSVP integration =====
+     Responses are submitted to the Google Form and appear in its Responses tab.
+     Link the form to Google Sheets there to keep responses in a spreadsheet. */
+  const GOOGLE_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSek_3gJ9pCFlryqJifDTz6UJib7Sj_ueqm7sClVIQ2CGTMBaw/formResponse';
+  const ENTRY = {
+    name: 'entry.1226512402',
+    cottage: 'entry.1902670502',
+    count: 'entry.1380819565',
+    notes: 'entry.82547827'
+  };
+
+  // Google Forms choice labels (must match the options configured in the form).
+  const COTTAGE_ANSWERS = {
+    '12 июня, без ночёвки': 'yes without accomodation',
+    '12–13 июня, с ночёвкой': 'yes with accomodation',
+    'не сможем': 'no'
+  };
 
   // ===== Языки: русский по умолчанию; литовский по кнопке LT, по ссылке с #lt или ?lang=lt =====
   const LT = {
@@ -641,18 +648,20 @@
     btn.disabled = true; btn.textContent = tr('sending');
     document.getElementById('form-err').hidden = true;
     let ok = false;
-    if(GOOGLE_FORM_URL){
-      try{
-        const params = new URLSearchParams();
-        params.append(ENTRY.name, data.get('name'));
-        params.append(ENTRY.cottage, data.get('cottage') + (isFinal?' (финальное подтверждение)':' (предварительно)'));
-        params.append(ENTRY.count, data.get('count'));
-        params.append(ENTRY.notes, data.get('notes')||'');
-        await fetch(GOOGLE_FORM_URL,{method:'POST',mode:'no-cors',body:params});
-        ok = true;
-      }catch(err){ ok = false; }
-    } else {
-      ok = true; // демо-режим, пока не подключена форма
+    try{
+      const params = new URLSearchParams();
+      params.append(ENTRY.name, data.get('name'));
+      params.append(ENTRY.cottage, COTTAGE_ANSWERS[data.get('cottage')] || data.get('cottage'));
+      params.append(ENTRY.count, data.get('count'));
+      const confirmationLabel = isFinal ? '[Final confirmation]' : '[Preliminary confirmation]';
+      const notes = (data.get('notes') || '').trim();
+      params.append(ENTRY.notes, notes ? confirmationLabel + ' ' + notes : confirmationLabel);
+      await fetch(GOOGLE_FORM_URL, { method:'POST', mode:'no-cors', body:params });
+      // With no-cors the browser cannot read Google's response; a resolved fetch
+      // means the request was sent, but Google Forms acceptance cannot be verified here.
+      ok = true;
+    }catch(err){
+      ok = false;
     }
     if(ok){
       form.style.display='none';
